@@ -17,10 +17,10 @@ import (
 func generateCert(orgs, dnsNames []string, commonName string) (*bytes.Buffer, *bytes.Buffer, *bytes.Buffer, error) {
 	// init CA config
 	ca := &x509.Certificate{
-		SerialNumber:          big.NewInt(2022),
+		SerialNumber:          big.NewInt(2023),
 		Subject:               pkix.Name{Organization: orgs},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(1, 0, 0), // expired in 1 year
+		NotAfter:              time.Now().AddDate(3, 0, 0), // expired in 3 year
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,

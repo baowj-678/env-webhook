@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -22,14 +24,17 @@ var (
 	deserializer  = codecs.UniversalDeserializer()
 )
 
-var ignoredNamespaces = []string{
-	metav1.NamespaceSystem,
-	metav1.NamespacePublic,
+const (
+	baowjNamespace = "baowj"
+)
+
+var mutateNamespaces = []string{
+	baowjNamespace,
 }
 
 const (
-	admissionWebhookAnnotationInjectKey = "sidecar-injector-webhook.morven.me/inject"
-	admissionWebhookAnnotationStatusKey = "sidecar-injector-webhook.morven.me/status"
+	admissionWebhookAnnotationInjectKey = "env-webhook.baowj.me/inject"
+	admissionWebhookAnnotationStatusKey = "env-webhook.baowj.me/status"
 )
 
 type WebhookServer struct {
@@ -37,17 +42,8 @@ type WebhookServer struct {
 	server        *http.Server
 }
 
-// Webhook Server parameters
-type WhSvrParameters struct {
-	port           int    // webhook server port
-	certFile       string // path to the x509 certificate for https
-	keyFile        string // path to the x509 private key matching `CertFile`
-	sidecarCfgFile string // path to sidecar injector configuration file
-}
-
 type Config struct {
-	Containers []corev1.Container `yaml:"containers"`
-	Volumes    []corev1.Volume    `yaml:"volumes"`
+	EnvFromSources []corev1.EnvFromSource `yaml:"envs"`
 }
 
 type patchOperation struct {
@@ -57,7 +53,7 @@ type patchOperation struct {
 }
 
 func loadConfig(configFile string) (*Config, error) {
-	data, err := ioutil.ReadFile(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -71,98 +67,88 @@ func loadConfig(configFile string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Check whether the target resoured need to be mutated
-func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
-	// skip special kubernete system namespaces
-	for _, namespace := range ignoredList {
-		if metadata.Namespace == namespace {
-			infoLogger.Printf("Skip mutation for %v for it's in special namespace:%v", metadata.Name, metadata.Namespace)
-			return false
-		}
-	}
-
+// Check whether the target resource need to be mutated
+func mutationRequired(mutatedList []string, metadata *metav1.ObjectMeta) bool {
 	annotations := metadata.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
 
-	status := annotations[admissionWebhookAnnotationStatusKey]
-
-	// determine whether to perform mutation based on annotation for the target resource
-	var required bool
-	if strings.ToLower(status) == "injected" {
-		required = false
-	} else {
-		switch strings.ToLower(annotations[admissionWebhookAnnotationInjectKey]) {
+	required := false
+	// check annotation
+	if key, ok := annotations[admissionWebhookAnnotationInjectKey]; ok {
+		switch strings.ToLower(key) {
 		default:
 			required = true
-		case "n", "not", "false", "off":
+		case "n", "not", "false", "off", "disable":
 			required = false
 		}
+	} else {
+		// check namespace
+		for _, namespace := range mutatedList {
+			if metadata.Namespace == namespace {
+				required = true
+				break
+			}
+		}
+	}
+
+	// check status
+	status := annotations[admissionWebhookAnnotationStatusKey]
+	// determine whether to perform mutation based on annotation for the target resource
+	if strings.ToLower(status) == "injected" {
+		required = false
 	}
 
 	infoLogger.Printf("Mutation policy for %v/%v: status: %q required:%v", metadata.Namespace, metadata.Name, status, required)
 	return required
+
 }
 
-func addContainer(target, added []corev1.Container, basePath string) (patch []patchOperation) {
-	first := len(target) == 0
-	var value interface{}
-	for _, add := range added {
-		value = add
-		path := basePath
-		if first {
-			first = false
-			value = []corev1.Container{add}
-		} else {
-			path = path + "/-"
-		}
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  path,
-			Value: value,
-		})
-	}
-	return patch
-}
+func addEnvFrom(target []corev1.Container, added []corev1.EnvFromSource, basePath string) (patch []patchOperation) {
+	for _, container := range target {
+		first := container.EnvFrom == nil || len(container.EnvFrom) == 0
+		var value interface{}
 
-func addVolume(target, added []corev1.Volume, basePath string) (patch []patchOperation) {
-	first := len(target) == 0
-	var value interface{}
-	for _, add := range added {
-		value = add
-		path := basePath
-		if first {
-			first = false
-			value = []corev1.Volume{add}
-		} else {
-			path = path + "/-"
+		for i, add := range added {
+			value = add
+			path := basePath + "/" + strconv.Itoa(i) + "/envFrom"
+			if first {
+				first = false
+				value = []corev1.EnvFromSource{add}
+			} else {
+				path = path + "/-"
+			}
+
+			patch = append(patch, patchOperation{
+				Op:    "add",
+				Path:  path,
+				Value: value,
+			})
 		}
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  path,
-			Value: value,
-		})
 	}
 	return patch
 }
 
 func updateAnnotation(target map[string]string, added map[string]string) (patch []patchOperation) {
+	if target == nil {
+		target = map[string]string{}
+	}
+
 	for key, value := range added {
-		if target == nil || target[key] == "" {
-			target = map[string]string{}
+		if _, ok := target[key]; ok {
+			patch = append(patch, patchOperation{
+				Op:    "replace",
+				Path:  "/metadata/annotations/" + key,
+				Value: value,
+			})
+		} else {
 			patch = append(patch, patchOperation{
 				Op:   "add",
 				Path: "/metadata/annotations",
 				Value: map[string]string{
 					key: value,
 				},
-			})
-		} else {
-			patch = append(patch, patchOperation{
-				Op:    "replace",
-				Path:  "/metadata/annotations/" + key,
-				Value: value,
 			})
 		}
 	}
@@ -173,8 +159,7 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 func createPatch(pod *corev1.Pod, sidecarConfig *Config, annotations map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
-	patch = append(patch, addContainer(pod.Spec.Containers, sidecarConfig.Containers, "/spec/containers")...)
-	patch = append(patch, addVolume(pod.Spec.Volumes, sidecarConfig.Volumes, "/spec/volumes")...)
+	patch = append(patch, addEnvFrom(pod.Spec.Containers, sidecarConfig.EnvFromSources, "/spec/containers")...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
 
 	return json.Marshal(patch)
@@ -197,7 +182,7 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 		req.Kind, req.Namespace, req.Name, pod.Name, req.UID, req.Operation, req.UserInfo)
 
 	// determine whether to perform mutation
-	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
+	if !mutationRequired(mutateNamespaces, &pod.ObjectMeta) {
 		infoLogger.Printf("Skipping mutation for %s/%s due to policy check", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
@@ -229,7 +214,7 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	var body []byte
 	if r.Body != nil {
-		if data, err := ioutil.ReadAll(r.Body); err == nil {
+		if data, err := io.ReadAll(r.Body); err == nil {
 			body = data
 		}
 	}

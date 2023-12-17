@@ -1,9 +1,9 @@
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: sidecar-injector
+  name: env-webhook
   labels:
-    app: sidecar-injector
+    app: env-webhook
 rules:
 - apiGroups: ["admissionregistration.k8s.io"]
   resources: ["mutatingwebhookconfigurations"]

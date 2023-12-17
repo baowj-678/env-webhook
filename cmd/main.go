@@ -20,7 +20,7 @@ var (
 
 var (
 	port                                 int
-	sidecarConfigFile                    string
+	envConfigFile                        string
 	webhookNamespace, webhookServiceName string
 )
 
@@ -37,10 +37,8 @@ func init() {
 func main() {
 	// init command flags
 	flag.IntVar(&port, "port", 8443, "Webhook server port.")
-	flag.StringVar(&webhookServiceName, "service-name", "sidecar-injector", "Webhook service name.")
-	flag.StringVar(&sidecarConfigFile, "sidecar-config-file", "/etc/webhook/config/sidecarconfig.yaml", "Sidecar injector configuration file.")
-	// flag.StringVar(&certFile, "tlsCertFile", "/etc/webhook/certs/cert.pem", "x509 Certificate file.")
-	// flag.StringVar(&keyFile, "tlsKeyFile", "/etc/webhook/certs/key.pem", "x509 private key file.")
+	flag.StringVar(&webhookServiceName, "service-name", "env-webhook", "Webhook service name.")
+	flag.StringVar(&envConfigFile, "sidecar-config-file", "/etc/webhook/config/envconfig.yaml", "Sidecar injector configuration file.")
 	flag.Parse()
 
 	dnsNames := []string{
@@ -50,7 +48,7 @@ func main() {
 	}
 	commonName := webhookServiceName + "." + webhookNamespace + ".svc"
 
-	org := "morven.me"
+	org := "baowj.me"
 	caPEM, certPEM, certKeyPEM, err := generateCert([]string{org}, dnsNames, commonName)
 	if err != nil {
 		errorLogger.Fatalf("Failed to generate ca and certificate key pair: %v", err)
@@ -61,7 +59,7 @@ func main() {
 		errorLogger.Fatalf("Failed to load certificate key pair: %v", err)
 	}
 
-	sidecarConfig, err := loadConfig(sidecarConfigFile)
+	sidecarConfig, err := loadConfig(envConfigFile)
 	if err != nil {
 		errorLogger.Fatalf("Failed to load configuration: %v", err)
 	}

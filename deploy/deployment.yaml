@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sidecar-injector
+  name: env-webhook
   labels:
-    app: sidecar-injector
+    app: env-webhook
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: sidecar-injector
+      app: env-webhook
   template:
     metadata:
       labels:
-        app: sidecar-injector
+        app: env-webhook
     spec:
-      serviceAccountName: sidecar-injector
+      serviceAccountName: env-webhook
       containers:
-        - name: sidecar-injector
-          image: sidecar-injector
+        - name: env-webhook
+          image: env-webhook # docker.io/baowj/env-webhook
           imagePullPolicy: Always
           args:
-          - -service-name=sidecar-injector
-          - -sidecar-config-file=/etc/webhook/config/sidecarconfig.yaml
+            - -service-name=env-webhook
+            - -sidecar-config-file=/etc/webhook/config/envconfig.yaml
           env:
           - name: POD_NAMESPACE
             valueFrom:
@@ -37,4 +37,4 @@ spec:
       volumes:
       - name: webhook-config
         configMap:
-          name: sidecar-injector
+          name: env-webhook

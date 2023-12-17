@@ -19,7 +19,7 @@ KUSTOMIZE_VERSION?=v3.5.4
 KUSTOMIZE_ARCHIVE_NAME?=kustomize_$(KUSTOMIZE_VERSION)_$(GOHOSTOS)_$(GOHOSTARCH).tar.gz
 kustomize_dir:=$(dir $(KUSTOMIZE))
 
-IMAGE = quay.io/morvencao/sidecar-injector:latest
+IMAGE = docker.io/baowj/env-webhook:latest
 
 all: build
 .PHONY: all
@@ -59,7 +59,7 @@ test: fmt vet ## Run tests.
 
 .PHONY: build
 build: fmt vet ## Build binary.
-	go build -o bin/sidecar-injector ./cmd/
+	go build -o bin/env-webhook ./cmd/
 
 .PHONY: docker-build
 docker-build: test ## Build docker image.
@@ -73,7 +73,7 @@ docker-push: ## Push docker image.
 
 deploy: kustomize
 	cp deploy/kustomization.yaml deploy/kustomization.yaml.tmp
-	cd deploy && $(KUSTOMIZE) edit set image sidecar-injector=$(IMAGE)
+	cd deploy && $(KUSTOMIZE) edit set image env-webhook=$(IMAGE)
 	$(KUSTOMIZE) build deploy | $(KUBECTL) apply -f -
 	mv deploy/kustomization.yaml.tmp deploy/kustomization.yaml
 

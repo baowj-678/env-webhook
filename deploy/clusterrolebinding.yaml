@@ -1,14 +1,14 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: sidecar-injector
+  name: env-webhook
   labels:
-    app: sidecar-injector
+    app: env-webhook
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: sidecar-injector
+  name: env-webhook
 subjects:
 - kind: ServiceAccount
-  name: sidecar-injector
-  namespace: sidecar-injector
+  name: env-webhook
+  namespace: baowj

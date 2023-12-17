@@ -1,19 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: sidecar-injector
+  name: env-webhook
   labels:
-    app: sidecar-injector
+    app: env-webhook
 data:
-  sidecarconfig.yaml: |
-    containers:
-    - name: sidecar-nginx
-      image: nginx:1.12.2
-      imagePullPolicy: IfNotPresent
-      volumeMounts:
-      - name: nginx-conf
-        mountPath: /etc/nginx
-    volumes:
-    - name: nginx-conf
-      configMap:
-        name: nginx-configmap
+  envconfig.yaml: |
+    envs:
+      - configmapref:
+          localobjectreference:
+            name: proxy-env
