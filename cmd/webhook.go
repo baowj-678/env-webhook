@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	baowjNamespace = "baowj"
+	baowjNamespace = "baowj" // todo: support config file
 )
 
 var mutateNamespaces = []string{
@@ -33,8 +33,8 @@ var mutateNamespaces = []string{
 }
 
 const (
-	admissionWebhookAnnotationInjectKey = "env-webhook.baowj.me/inject"
-	admissionWebhookAnnotationStatusKey = "env-webhook.baowj.me/status"
+	admissionWebhookAnnotationInjectKey = "env-webhook.baowj.me/inject" // todo: support config file
+	admissionWebhookAnnotationStatusKey = "env-webhook.baowj.me/status" // todo: support config file
 )
 
 type WebhookServer struct {
@@ -86,6 +86,7 @@ func mutationRequired(mutatedList []string, metadata *metav1.ObjectMeta) bool {
 	} else {
 		// check namespace
 		for _, namespace := range mutatedList {
+			// todo: metadata.Namespace is empty if use `kubectl run xxx`
 			if metadata.Namespace == namespace {
 				required = true
 				break
