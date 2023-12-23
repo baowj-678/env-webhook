@@ -9,4 +9,8 @@ data:
     envs:
       - configmapref:
           localobjectreference:
-            name: proxy-env
+            name: env
+    namespaces:
+      - test
+      - default
+      

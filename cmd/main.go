@@ -59,7 +59,7 @@ func main() {
 		errorLogger.Fatalf("Failed to load certificate key pair: %v", err)
 	}
 
-	sidecarConfig, err := loadConfig(envConfigFile)
+	config, err := loadConfig(envConfigFile)
 	if err != nil {
 		errorLogger.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -71,7 +71,7 @@ func main() {
 	}
 
 	whsvr := &WebhookServer{
-		sidecarConfig: sidecarConfig,
+		config: config,
 		server: &http.Server{
 			Addr:      fmt.Sprintf(":%v", port),
 			TLSConfig: &tls.Config{Certificates: []tls.Certificate{pair}},

@@ -18,4 +18,12 @@ make docker-build
 make deploy
 ~~~
 
+### undeploy
+
+~~~ shell
+make undeploy
+~~~
+
+## Configuration[todo]
+
 [//]: # (todo)

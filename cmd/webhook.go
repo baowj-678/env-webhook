@@ -25,25 +25,18 @@ var (
 )
 
 const (
-	baowjNamespace = "baowj" // todo: support config file
-)
-
-var mutateNamespaces = []string{
-	baowjNamespace,
-}
-
-const (
-	admissionWebhookAnnotationInjectKey = "env-webhook.baowj.me/inject" // todo: support config file
-	admissionWebhookAnnotationStatusKey = "env-webhook.baowj.me/status" // todo: support config file
+	admissionWebhookAnnotationInjectKey = "env-webhook.baowj.me/inject" //
+	admissionWebhookAnnotationStatusKey = "env-webhook.baowj.me/status" //
 )
 
 type WebhookServer struct {
-	sidecarConfig *Config
-	server        *http.Server
+	config *Config
+	server *http.Server
 }
 
 type Config struct {
-	EnvFromSources []corev1.EnvFromSource `yaml:"envs"`
+	EnvFromSources   []corev1.EnvFromSource `yaml:"envs"`
+	MutateNamespaces []string               `yaml:"namespaces"`
 }
 
 type patchOperation struct {
@@ -86,7 +79,6 @@ func mutationRequired(mutatedList []string, metadata *metav1.ObjectMeta) bool {
 	} else {
 		// check namespace
 		for _, namespace := range mutatedList {
-			// todo: metadata.Namespace is empty if use `kubectl run xxx`
 			if metadata.Namespace == namespace {
 				required = true
 				break
@@ -182,8 +174,12 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 	infoLogger.Printf("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, pod.Name, req.UID, req.Operation, req.UserInfo)
 
+	// pod.ObjectMeta.Namespace is empty if use `kubectl run xxx`
+	if pod.ObjectMeta.Namespace == "" {
+		pod.ObjectMeta.Namespace = req.Namespace
+	}
 	// determine whether to perform mutation
-	if !mutationRequired(mutateNamespaces, &pod.ObjectMeta) {
+	if !mutationRequired(whsvr.config.MutateNamespaces, &pod.ObjectMeta) {
 		infoLogger.Printf("Skipping mutation for %s/%s due to policy check", pod.Namespace, pod.Name)
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
@@ -191,7 +187,7 @@ func (whsvr *WebhookServer) mutate(ar *admissionv1.AdmissionReview) *admissionv1
 	}
 
 	annotations := map[string]string{admissionWebhookAnnotationStatusKey: "injected"}
-	patchBytes, err := createPatch(&pod, whsvr.sidecarConfig, annotations)
+	patchBytes, err := createPatch(&pod, whsvr.config, annotations)
 	if err != nil {
 		return &admissionv1.AdmissionResponse{
 			Result: &metav1.Status{

@@ -13,6 +13,7 @@ endif
 
 # Tools for deploy
 KUBECTL?=kubectl
+WEBHOOK_CONFIG?=env-webhook
 PWD=$(shell pwd)
 KUSTOMIZE?=$(PWD)/$(PERMANENT_TMP_GOPATH)/bin/kustomize
 KUSTOMIZE_VERSION?=v3.5.4
@@ -79,6 +80,7 @@ deploy: kustomize
 
 undeploy: kustomize
 	$(KUSTOMIZE) build deploy | $(KUBECTL) delete --ignore-not-found -f -
+	-$(KUBECTL) delete mutatingwebhookconfiguration $(WEBHOOK_CONFIG)
 
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
